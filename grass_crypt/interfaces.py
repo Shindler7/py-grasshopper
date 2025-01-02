@@ -1,41 +1,69 @@
-"""
-Интерфейс взаимодействия с инфраструктурой шифрования cryptor.
-"""
-from cryptor import do_encrypt, do_decrypt
+"""Интерфейс взаимодействия с инфраструктурой шифрования cryptor."""
+
+from cryptor import do_decrypt, do_encrypt
 
 
-def encrypt(plaintext: str, *, key_pass: str) -> str:
+def encrypt(plaintext: bytes, *, key: bytes) -> bytes:
+    """Закодировать переданную кодовую строку.
+
+    Returns:
+        Зашифрованная строка в формате байт.
+
     """
-    Закодировать переданную кодовую строку.
+    return do_encrypt(plaintext, key)
 
-    :param plaintext: Текст для кодирования.
-    :param key_pass: Ключ для кодирования.
-    :returns: Закодированная строка.
+
+def decrypt(plaintext: bytes, *, key: bytes) -> bytes:
+    """Декодировать переданную строку.
+
+    Returns:
+        Расшифрованная строка в формате байт.
+
     """
-
-    return do_encrypt(plaintext, key_pass)
-
-
-def decrypt(plaintext: str, *, key_pass: str) -> str:
-    """
-    Декодировать переданную строку.
-
-    :param plaintext: Текс для декодирования.
-    :param key_pass: Ключ для декодирования.
-    :returns: Декодированный текст.
-    """
-
-    return do_decrypt(plaintext, key_pass)
+    return do_decrypt(plaintext, key)
 
 
-text = """There were cities and distances between us. I was looking for 
-travel, but you were attracted to TV series!
-"""
+text = b"1234567890123456"
+key = bytes([
+    0x88,
+    0x99,
+    0xAA,
+    0xBB,
+    0xCC,
+    0xDD,
+    0xEE,
+    0xFF,
+    0x00,
+    0x11,
+    0x22,
+    0x33,
+    0x44,
+    0x55,
+    0x66,
+    0x77,
+    0xFE,
+    0xDC,
+    0xBA,
+    0x98,
+    0x76,
+    0x54,
+    0x32,
+    0x10,
+    0x01,
+    0x23,
+    0x45,
+    0x67,
+    0x89,
+    0xAB,
+    0xCD,
+    0xEF,
+])
 
-key = 'test1234'
+print("Text:", text.hex(" "))
+print("Key:", key.hex(" "))
 
-res = encrypt(text, key_pass=key)
-print(res)
+encrypted = encrypt(text, key=key)
+print("Enctypted:", encrypted.hex(" "))
 
-res2 = decrypt(res, key_pass=key)
-print(res2)
+decrypted = decrypt(encrypted, key=key)
+print("Dectypted:", decrypted.hex(" "))

@@ -8,8 +8,7 @@ use mode::ECB;
 use padding::PKCS7;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyString;
-use sha2::{Digest, Sha256};
+use pyo3::types::PyBytes;
 use traits::{CipherError, Encryptor};
 
 /// Шифратор.
@@ -18,7 +17,7 @@ use traits::{CipherError, Encryptor};
 #[pyfunction]
 #[pyo3(name = "do_encrypt")]
 #[pyo3(signature = (text, key))]
-fn do_encrypt(text: Bound<'_, PyString>, key: Bound<'_, PyString>) -> PyResult<String> {
+fn do_encrypt(text: Bound<'_, PyBytes>, key: Bound<'_, PyBytes>) -> PyResult<Vec<u8>> {
     let tuple_data = extract_text_and_key(&text, &key)?;
 
     let encrypt_result = encrypting(tuple_data.0, tuple_data.1);
@@ -29,7 +28,7 @@ fn do_encrypt(text: Bound<'_, PyString>, key: Bound<'_, PyString>) -> PyResult<S
 #[pyfunction]
 #[pyo3(name = "do_decrypt")]
 #[pyo3(signature = (text, key))]
-fn do_decrypt(text: Bound<'_, PyString>, key: Bound<'_, PyString>) -> PyResult<String> {
+fn do_decrypt(text: Bound<'_, PyBytes>, key: Bound<'_, PyBytes>) -> PyResult<Vec<u8>> {
     let tuple_data = extract_text_and_key(&text, &key)?;
 
     let decrypt_result = decrypting(tuple_data.0, tuple_data.1);
@@ -44,23 +43,23 @@ fn cryptor(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-/// # Преобразователь PyString для текста и ключа в String.
+/// # Преобразователь PyBytes для текста и ключа в Vec<u8>.
 ///
 /// Одновременно проводятся базовые проверки.
 fn extract_text_and_key(
-    text: &Bound<'_, PyString>,
-    key: &Bound<'_, PyString>,
-) -> Result<(String, String), PyErr> {
-    let text: String = text.extract()?;
-    let key_pass: String = key.extract()?;
+    text: &Bound<'_, PyBytes>,
+    key: &Bound<'_, PyBytes>,
+) -> Result<(Vec<u8>, Vec<u8>), PyErr> {
+    let text: Vec<u8> = text.extract()?;
+    let key: Vec<u8> = key.extract()?;
 
-    if text.is_empty() || key_pass.is_empty() {
+    if text.is_empty() || key.is_empty() {
         return Err(PyValueError::new_err(
             "'text' and the 'key' cannot be empty",
         ));
     }
 
-    Ok((text, key_pass))
+    Ok((text, key))
 }
 
 /// # Шифрование переданной строки с использованием ключа.
@@ -69,43 +68,25 @@ fn extract_text_and_key(
 ///
 /// - text — Текст для шифрования
 /// - key — Ключ для шифрования
-fn encrypting(text: String, key: String) -> String {
+fn encrypting(text: Vec<u8>, key: Vec<u8>) -> Vec<u8> {
     // Шифратор работает с массивами u8 в формате HEX.
     // Требуется преобразовать строки.
 
-    let encryptor = get_encryptor(&string_to_hash(&key)).unwrap();
-
-    let text_hex = text.bytes().collect::<Vec<u8>>();
-    let result = encryptor.encrypt(&text_hex).unwrap();
-
-    String::from_utf8_lossy(&result).to_string()
+    let encryptor = get_encryptor(&key).unwrap();
+    encryptor.encrypt(&text).unwrap()
 }
 
 /// # Дешифровка переданной строки с использованием ключа.
-fn decrypting(text: String, key: String) -> String {
-    let encryptor = get_encryptor(&string_to_hash(&key)).unwrap();
-
-    let text_hex = text.bytes().collect::<Vec<u8>>();
-    let result = encryptor.decrypt(&text_hex).unwrap();
-
-    String::from_utf8_lossy(&result).to_string()
+fn decrypting(text: Vec<u8>, key: Vec<u8>) -> Vec<u8> {
+    let encryptor = get_encryptor(&key).unwrap();
+    encryptor.decrypt(&text).unwrap()
 }
 
 /// # Фабрика подготовки шифровальщика.
 fn get_encryptor(key_arr: &[u8]) -> Result<Encryptor, CipherError> {
-    let cipher = Box::new(Kuznyechik::new(&key_arr)?);
+    let cipher = Box::new(Kuznyechik::new(key_arr)?);
     let padding = Box::new(PKCS7);
     let mode = Box::new(ECB);
 
     Encryptor::new_block(cipher, mode, padding)
-}
-
-/// # Создание хэша строкового ключа.
-fn string_to_hash(text: &String) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(text.as_bytes());
-    let result = hasher.finalize();
-    let mut key = [0; 32];
-    key.copy_from_slice(&result);
-    key
 }
