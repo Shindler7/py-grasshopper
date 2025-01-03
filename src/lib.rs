@@ -1,15 +1,11 @@
-pub mod cipher;
-pub mod mode;
-pub mod padding;
-pub mod traits;
+use block_encryption::cipher::kuznyechik::cipher::Kuznyechik;
+use block_encryption::mode::ECB;
 
-use cipher::kuznyechik::cipher::Kuznyechik;
-use mode::ECB;
-use padding::PKCS7;
+use block_encryption::padding::PKCS7;
+use block_encryption::traits::{CipherError, Encryptor};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use traits::{CipherError, Encryptor};
 
 /// Шифратор.
 ///

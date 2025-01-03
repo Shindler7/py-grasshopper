@@ -1,12 +1,10 @@
 # Учебный Python/Rust проект по шифрованию данных
 
-## <span style="color:red">ПРЕДВАРИТЕЛЬНЫЙ КОММИТ. НЕФУКЦИОНАЛЬНО.</span>
-
 - **Python** — "обёртка" для взаимодействия с rust-приложением по шифрованию
   данных;
-- **Rust** — шифровальщик, использующий алгоритм "Кузнечик" (ГОСТ 34.12-2018).
-  Репозиторий приложения
-  на [gitverse](https://gitverse.ru/digit4lsh4d0w/cryptography/content/main).
+- **Rust** — учебная библиотека блочного
+  шифрования [block-encryption](https://gitverse.ru/digit4lsh4d0w/block-encryption).
+  В частности используется шифр "Кузнечик" (ГОСТ 34.12-2018).
 
 **Важно**: это учебный проект, использование которого возможно только **в
 личных и учебных целях**. Его нельзя применять для задач, которые в
@@ -16,26 +14,45 @@
 
 Для компиляции Rust-пакетов
 требуется [установка Rust](https://www.rust-lang.org/tools/install), и,
-возможно, потребуется
-установить [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
+возможно, [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
 
 Далее механизм прост.
 
 ```shell
 (.venv) pip install git+https://github.com/Shindler7/py-grasshopper.git
-(.venv) maturin build 
+(.venv) maturin develop --uv
 ```
 
 ## Использование
 
-```python
-from grass_crypt.interfaces import do_encrypt
-
-
-def encrypt():
-    result = do_encrypt('string for encrypt', key='pass1234')
-    print(result)
+```pycon
+>>> from grass_crypt.interfaces import encrypt, decrypt
+>>>
+>>> code = 'pass12345'
+>>> text = 'text text text text'
+>>> 
+>>> e = encrypt(text, code=code)
+>>> print(e)
+b'A7wfJmUk/7RcZQyG4U76sQy7mI3tQoanu73R5126M(...)'
+>>>
+>>> d = decrypt(e, code=code)
+'text text text text'
 ```
+
+Для работы с файлами доступны методы: ``interfaces.encrypt_file`` и
+``intefaces.decrypt_file``.
+
+**Важно**: записываются зашифрованные файлы всегда в бинарном режиме и также
+считываются. При этом файлы для шифрования считываются в текстовом режиме,
+и также записываются дешифрованные файлы. Это необходимо учитывать, если
+зашифровать планируется бинарный файл.
+
+## Ограничения и предостережения
+
+В настоящее время аттрибут ``mode`` всегда работает в значении
+``EncryptMode.ECB``.
+
+Автотестирование библиотеки ещё не проводилось.
 
 ## История версий
 

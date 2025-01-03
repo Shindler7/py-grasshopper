@@ -10,4 +10,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.23.3", features = ["extension-module"] }
-sha2 = "0.10.8"
+block-encryption = { git = "https://gitverse.ru/digit4lsh4d0w/block-encryption" }
