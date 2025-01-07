@@ -1,4 +1,5 @@
 use block_encryption::cipher::kuznyechik::cipher::Kuznyechik;
+// use block_encryption::mode::{CBC, CFB, CTR, ECB, OFB};
 use block_encryption::mode::ECB;
 
 use block_encryption::padding::PKCS7;
@@ -7,27 +8,31 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-/// Шифратор.
+/// # Шифратор.
 ///
-/// - text — текст для шифрования
+/// - plaintext — Текст для шифрования
+/// - key — Ключ для шифрования
 #[pyfunction]
 #[pyo3(name = "do_encrypt")]
-#[pyo3(signature = (text, key))]
-fn do_encrypt(text: Bound<'_, PyBytes>, key: Bound<'_, PyBytes>) -> PyResult<Vec<u8>> {
-    let tuple_data = extract_text_and_key(&text, &key)?;
-
+#[pyo3(signature = (plaintext, key))]
+fn do_encrypt(plaintext: Bound<'_, PyBytes>, key: Bound<'_, PyBytes>) -> PyResult<Vec<u8>> {
+    let tuple_data = extract_text_and_key(&plaintext, &key)?;
     let encrypt_result = encrypting(tuple_data.0, tuple_data.1);
+
     Ok(encrypt_result)
 }
 
 /// # Дешифратор.
+///
+/// - ciphertext — Зашифрованный текст для дешифровки
+/// - key — Ключ для дешифровки
 #[pyfunction]
 #[pyo3(name = "do_decrypt")]
-#[pyo3(signature = (text, key))]
-fn do_decrypt(text: Bound<'_, PyBytes>, key: Bound<'_, PyBytes>) -> PyResult<Vec<u8>> {
-    let tuple_data = extract_text_and_key(&text, &key)?;
-
+#[pyo3(signature = (ciphertext, key))]
+fn do_decrypt(ciphertext: Bound<'_, PyBytes>, key: Bound<'_, PyBytes>) -> PyResult<Vec<u8>> {
+    let tuple_data = extract_text_and_key(&ciphertext, &key)?;
     let decrypt_result = decrypting(tuple_data.0, tuple_data.1);
+
     Ok(decrypt_result)
 }
 

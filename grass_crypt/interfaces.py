@@ -1,50 +1,90 @@
 """
 Интерфейс взаимодействия с инфраструктурой шифрования cryptor.
 """
-
 import base64
-from typing import Optional
+import warnings
+from typing import Optional, Any
 
 from ._engine import encrypting_rust, decrypting_rust
-from .exception import CodeMismatchError
-from .tools import EncryptMode, get_hash_blake2b
+from .exception import MetaStringError
+from .tools import EncryptMode, get_hash_blake2b, load_file, save_file
 
 
-def encrypt(plaintext: str,
+def encrypt(plaintext: str | bytes,
             *,
             code: str,
             mode: EncryptMode = EncryptMode.ECB,
             ) -> bytes:
-    """ Зашифровать предоставленный текст.
+    """
+    Зашифровать предоставленные данные.
 
-    :param plaintext: Открытый текст для шифрования.
+    :param plaintext: Данные для шифрования, текст или bytes-объект.
     :param code: Код шифрования.
     :param mode: Режим шифрования.
     :returns:
-        Зашифрованный текст bytes-строке в формате ASCII.
+        Зашифрованный текст bytes-строкой в формате ASCII.
     :raises UnicodeEncodeErrors: При ошибках декодирования строковых значений
                                  в байт-строки.
-    :raises ValueErrors: При предоставлении неверных аргументов.
+    :raises ValueError: При предоставлении неверных аргументов.
     """
 
-    validate_inputs_data(plaintext, mode)
+    if not isinstance(plaintext, (str, bytes)) or not plaintext:
+        raise ValueError('plaintext must be str, bytes and cannot be empty')
+    else:
+        validate_inputs_data(code, mode)
 
-    if not isinstance(plaintext, str) or not plaintext:
-        raise ValueError('plaintext must be str and cannot be empty')
+    hash_code, salt = get_hash_blake2b(code)
+    plaintext_type = type(plaintext)
+    if isinstance(plaintext, str):
+        plaintext = plaintext.encode('utf-8')
+    encoded_data = encrypting_rust(plaintext, code=hash_code, mode=mode)
+    # make metadata
+    meta = make_meta(plaintext_type=plaintext_type,
+                     hash_code=hash_code,
+                     salt=salt,
+                     mode=mode)
 
-    plaintext: bytes = plaintext.encode('utf-8')
-    code, salt = get_hash_blake2b(code)
-
-    encoded = encrypting_rust(plaintext, code, mode)
-    return base64.b64encode(salt + code + encoded)
+    return base64.b64encode(meta + encoded_data)
 
 
-def encrypt_file(*,
-                 input_path: str,
-                 output_path: Optional[str] = None,
-                 code: str,
-                 mode: EncryptMode = EncryptMode.ECB) -> str:
-    """ Зашифровать предоставленный файл.
+def decrypt(ciphertext: bytes, *, code: str) -> str | bytes:
+    """
+    Расшифровать предоставленный байт-массив.
+
+    :param ciphertext: Данные для расшифровки.
+    :param code: Код шифрования.
+    :returns:
+        Строковое или байтовое представление расшифрованного текста.
+    :raises ValueError: При предоставлении неверных аргументов.
+    :raises MetaStringError: Если предоставлен неверный код шифрования.
+    """
+
+    if not isinstance(ciphertext, bytes) or not ciphertext:
+        raise ValueError('ciphertext must be bytes and cannot be empty')
+
+    ciphertext = base64.b64decode(ciphertext)
+    error, ciphertext, meta_data = read_meta(ciphertext=ciphertext)
+    if error is not None:
+        raise MetaStringError(str(error)) from error
+    hash_code = get_hash_blake2b(code, salt=meta_data['salt'])[0]
+    if hash_code != meta_data['hash_code']:
+        raise MetaStringError('passphrases do not match')
+
+    decoded = decrypting_rust(
+        ciphertext, code=hash_code, mode=meta_data['mode'])
+    if meta_data['source_type'] == bytes:
+        return decoded
+
+    return decoded.decode('utf-8')
+
+
+def _encrypt_file(*,
+                  input_path: str,
+                  output_path: Optional[str] = None,
+                  code: str,
+                  mode: EncryptMode = EncryptMode.ECB) -> str:
+    """
+    Зашифровать предоставленный файл.
 
     :param input_path: Ссылка на файл для шифрования.
     :param output_path: Ссылка для сохранения зашифрованного файла. Если
@@ -53,118 +93,73 @@ def encrypt_file(*,
     :param mode: Режим шифрования.
     :returns:
         Путь к зашифрованному файлу.
-    :raises ValueErrors: При предоставлении неверных аргументов.
+    :raises ValueError: При предоставлении неверных аргументов.
     :raises RuntimeError: При ошибках на чтение/запись файлов.
     """
 
-    validate_inputs_data(code, mode)
+    warnings.warn(
+        'The function is currently under development. '
+        'The functionality is preliminary.',
+        RuntimeWarning
+    )
 
     try:
-        # Чтение
-        with open(input_path, 'r', encoding='utf-8') as input_file:
-            file_data = input_file.read()
+        file_data = load_file(input_path)
+        encrypted_data = encrypt(file_data, code=code, mode=mode)
 
-    except (FileNotFoundError, OSError) as e:
-        raise RuntimeError(
-            f'error reading input_file {input_path}: {e}') from e
-
-    encrypted_data = encrypt(file_data, code=code, mode=mode)
-
-    try:
         if output_path is None:
             output_path = input_path
-        with open(output_path, 'w+') as output_file:
-            output_file.write(encrypted_data)
+
+        save_file(output_path, data=encrypted_data)
+
         return output_path
 
-    except (FileNotFoundError, OSError) as e:
-        raise FileNotFoundError(
-            f'error writing output file {output_path}: {e}') from e
+    except Exception as err:
+        msg_err = f'file encrypting error ({input_path}): {err}'
+        raise RuntimeError(msg_err) from err
 
 
-def decrypt(ciphertext: bytes,
-            *,
-            code: str,
-            mode: EncryptMode = EncryptMode.ECB,
-            ignore_mismatch_code: bool = False) -> str:
-    """ Расшифровать предоставленный байт-массив.
-
-    :param ciphertext: Текст для расшифровки.
-    :param code: Код шифрования.
-    :param mode: Режим шифрования.
-    :param ignore_mismatch_code: По-умолчанию происходит сверка хеш-кодов, и
-                                 если они не соответствует, возбуждается
-                                 исключение.
-    :returns:
-        Строковое представление расшифрованного текста.
-    :raises ValueErrors: При предоставлении неверных аргументов.
-    :raises CodeMismatchError: Если предоставлен неверный код шифрования.
+def _decrypt_file(*,
+                  input_path: str,
+                  output_path: Optional[str] = None,
+                  code: str) -> str:
     """
-
-    validate_inputs_data(code, mode)
-
-    ciphertext = base64.b64decode(ciphertext)
-    salt = ciphertext[:16]
-    code_cipher = ciphertext[16:48]
-    code = get_hash_blake2b(code, salt=salt)[0]
-    if code == code_cipher:
-        ciphertext = ciphertext[48:]
-    else:
-        if not ignore_mismatch_code:
-            raise CodeMismatchError()
-
-    decoded = decrypting_rust(ciphertext, code=code, mode=mode)
-
-    return decoded.decode('utf-8')
-
-
-def decrypt_file(*,
-                 input_path: str,
-                 output_path: Optional[str] = None,
-                 code: str,
-                 mode: EncryptMode = EncryptMode.ECB) -> str:
-    """ Расшифровать предоставленный файл.
+    Расшифровать предоставленный файл.
 
     :param input_path: Ссылка на файл для дешифровки.
     :param output_path: Ссылка для сохранения дешифрованного файла. Если
                         не предоставлено, перезаписывается ``input_path``.
     :param code: Код шифрования.
-    :param mode: Режим шифрования.
     :returns:
          Путь к дешифрованному файлу.
-    :raises ValueErrors: При предоставлении неверных аргументов.
+    :raises ValueError: При предоставлении неверных аргументов.
     :raises RuntimeError: При ошибках на чтение/запись файлов.
-    :raises CodeMismatchError: Если предоставлен неверный код шифрования.
+    :raises MetaStringError: Если предоставлен неверный код шифрования.
     """
 
-    validate_inputs_data(code, mode)
+    warnings.warn(
+        'The function is currently under development. '
+        'The functionality is preliminary.',
+        RuntimeWarning
+    )
 
     try:
-        with open(input_path, 'rb') as input_file:
-            file_data = input_file.read()
+        file_data = load_file(input_path, binary=True)
+        decrypted_data = decrypt(file_data, code=code)
 
-    except (FileNotFoundError, OSError) as e:
-        raise RuntimeError(
-            f'error reading input_file {input_path}: {e}') from e
-
-    decrypted_data = decrypt(file_data, code=code, mode=mode)
-
-    try:
         if output_path is None:
             output_path = input_path
 
-        with open(output_path, 'w+') as output_file:
-            output_file.write(decrypted_data)
+        return save_file(output_path, data=decrypted_data)
 
-        return output_path
-
-    except (FileNotFoundError, OSError) as e:
-        raise FileNotFoundError(
-            f'error writing output file {output_path}: {e}') from e
+    except Exception as err:
+        msg_err = f'file decrypting error ({input_path}): {err}'
+        raise RuntimeError(msg_err) from err
 
 
 def validate_inputs_data(code: str, mode: EncryptMode) -> None:
-    """ Проверка основных входных параметров.
+    """
+    Проверка основных входных параметров.
 
     :raises ValueError: При обнаружении ошибок в данных.
     """
@@ -173,3 +168,63 @@ def validate_inputs_data(code: str, mode: EncryptMode) -> None:
         raise ValueError('code must be str and cannot be empty')
     if not isinstance(mode, EncryptMode):
         raise ValueError('mode must be an instance of EncryptMode')
+
+
+def make_meta(*,
+              plaintext_type: type[bytes | str],
+              hash_code: bytes,
+              salt: bytes,
+              mode: EncryptMode) -> bytes:
+    """
+    Создать строку метаданных для добавления к шифровке.
+
+    Схема:
+
+    - 3 байта — STR/BYT — тип входных данных на шифровку (str, bytes)
+    - 3 байта — EncryptMode
+    - 16 байтов — соль для хеша кодовой фразы
+    - 32 байта — хеш кодовой фразы
+
+    :returns:
+        Байтовая строка с основными данными.
+    """
+
+    if plaintext_type == str or plaintext_type == bytes:
+        data_type = str(plaintext_type.__name__)[:3].upper()
+    else:
+        raise ValueError('plaintext_type must be str or bytes')
+
+    return data_type.encode('utf-8') + mode.as_bytes() + salt + hash_code
+
+
+def read_meta(*,
+              ciphertext: bytes
+              ) -> tuple[Optional[Exception], bytes, dict[str, Any]]:
+    """
+    Считать и распаковать метаданные из зашифрованного текста.
+
+    :param ciphertext: Шифрованный текст.
+    :returns:
+        Три элемента: экземпляр исключения, если возникли ошибки при
+        декодировании метаданных или None; зашифрованный текст за вычетом
+        строки метаданных; словарь с аргументами метаданных.
+    """
+
+    try:
+        if len(ciphertext) < 54:
+            raise ValueError('metadata string is incorrect (short line)')
+
+        source_type = {
+            'STR': str, 'BYT': bytes
+        }[ciphertext[:3].decode('utf-8')]
+        meta_data: dict[str, Any] = {
+            'source_type': source_type,
+            'mode': EncryptMode.me_from_value(ciphertext[3:6].decode('utf-8')),
+            'salt': ciphertext[6:22],
+            'hash_code': ciphertext[22:54],
+        }
+
+        return None, ciphertext[54:], meta_data
+
+    except Exception as err:
+        return err, b'', {}

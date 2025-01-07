@@ -14,9 +14,9 @@ class GrassCryptException(Exception):
         super().__init__(self.message)
 
 
-class CodeMismatchError(GrassCryptException):
+class MetaStringError(GrassCryptException):
     """
     Несовпадение кодовых фраз.
     """
 
-    message = 'Passphrases do not match.'
+    message = 'The metadata string is missing or incorrect'
