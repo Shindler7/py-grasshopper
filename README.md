@@ -12,6 +12,8 @@
 
 ## Инсталляция
 
+### Для опытных
+
 Для компиляции Rust-пакетов
 требуется [установка Rust](https://www.rust-lang.org/tools/install), и,
 возможно, [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
@@ -21,6 +23,13 @@
 ```shell
 (.venv) pip install git+https://github.com/Shindler7/py-grasshopper.git
 (.venv) maturin develop --uv
+```
+
+### Для ленивых
+
+Установить актуальную версию из [GitHub Release](https://github.com/Shindler7/py-grasshopper/releases/download/v0.3.0/py_grasshopper-0.3.0-cp313-cp313-win_amd64.whl):
+```shell
+(.venv) pip install https://github.com/Shindler7/py-grasshopper/releases/download/v0.3.0/py_grasshopper-0.3.0-cp313-cp313-win_amd64.whl
 ```
 
 ## Использование
@@ -39,7 +48,7 @@ b'A7wfJmUk/7RcZQyG4U76sQy7mI3tQoanu73R5126M(...)'
 'text text text text'
 ```
 
-**Функционал в разработке:**
+**Дополнительный функционал:**
 
 Для работы с файлами доступны методы: ``interfaces.encrypt_file`` и
 ``intefaces.decrypt_file``.
