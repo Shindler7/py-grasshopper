@@ -78,3 +78,4 @@ docs/_build/
 # Project special
 data/
 tests/
+debug.py

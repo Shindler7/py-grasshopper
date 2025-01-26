@@ -3,7 +3,7 @@
 """
 import warnings
 
-from cryptor import do_encrypt, do_decrypt
+from cryptor import do_encrypt, do_decrypt  # noqa
 
 from .tools import EncryptMode
 
@@ -18,9 +18,7 @@ def encrypting_rust(plaintext: bytes,
         Возвращает зашифрованный текст без метаданных.
     """
 
-    _mode_warning(mode)
-
-    return do_encrypt(plaintext, code)
+    return do_encrypt(plaintext, code, mode.value)
 
 
 def decrypting_rust(ciphertext: bytes,
@@ -33,9 +31,7 @@ def decrypting_rust(ciphertext: bytes,
         Возвращает дешифрованный текст.
     """
 
-    _mode_warning(mode)
-
-    return do_decrypt(ciphertext, code)
+    return do_decrypt(ciphertext, code, mode.value)
 
 
 def _mode_warning(mode: EncryptMode):

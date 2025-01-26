@@ -4,7 +4,7 @@
 import os
 from enum import Enum
 from hashlib import blake2b
-from typing import Optional
+from typing import Optional, Any
 
 
 class EncryptMode(Enum):
@@ -29,7 +29,7 @@ class EncryptMode(Enum):
         for name, v in cls.__members__.items():
             if v.value == value:
                 return cls(name)
-        cls.raise_unknown()
+        cls._raise_unknown()
 
     @classmethod
     def me_from_name(cls, name: str) -> 'EncryptMode':
@@ -40,10 +40,10 @@ class EncryptMode(Enum):
             Экземпляр класса EncryptMode.
         :raises ValueError: При отсутствии запрошенного элемента.
         """
-        return cls(name) if name in cls.__members__ else cls.raise_unknown()
+        return cls(name) if name in cls.__members__ else cls._raise_unknown()
 
     @staticmethod
-    def raise_unknown() -> None:
+    def _raise_unknown() -> None:
         raise ValueError('Unknown encrypt mode')
 
 
@@ -118,3 +118,61 @@ def save_file(filepath: str, *, data: str | bytes) -> str:
         file.write(data)
 
     return filepath
+
+
+def make_meta(*,
+              plaintext_type: type[bytes | str],
+              salt: bytes,
+              mode: EncryptMode) -> bytes:
+    """
+    Создать строку метаданных для добавления к шифровке.
+
+    Схема:
+
+    - 3 байта — STR/BYT — тип входных данных на шифровку (str, bytes)
+    - 3 байта — EncryptMode
+    - 16 байтов — соль для хеша кодовой фразы
+
+    :returns:
+        Байтовая строка с основными данными.
+    """
+
+    if plaintext_type == str or plaintext_type == bytes:
+        data_type = str(plaintext_type.__name__)[:3].upper()
+    else:
+        raise ValueError('plaintext_type must be str or bytes')
+
+    return data_type.encode('utf-8') + mode.as_bytes() + salt
+
+
+def read_meta(*,
+              ciphertext: bytes
+              ) -> tuple[Optional[Exception], bytes, dict[str, Any]]:
+    """
+    Считать и распаковать метаданные из зашифрованного текста.
+
+    :param ciphertext: Шифрованный текст.
+    :returns:
+        Три элемента: экземпляр исключения, если возникли ошибки при
+        декодировании метаданных или None; зашифрованный текст за вычетом
+        строки метаданных; словарь с аргументами метаданных.
+    """
+
+    try:
+        if len(ciphertext) < 22:
+            raise ValueError('metadata string is incorrect (short line)')
+
+        source_type = {
+            'STR': str, 'BYT': bytes
+        }[ciphertext[:3].decode('utf-8')]
+        meta_data: dict[str, Any] = {
+            'source_type': source_type,
+            'mode': EncryptMode.me_from_value(
+                ciphertext[3:6].decode('utf-8')),
+            'salt': ciphertext[6:22],
+        }
+
+        return None, ciphertext[22:], meta_data
+
+    except Exception as err:
+        return err, b'', {}
