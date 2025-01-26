@@ -27,6 +27,8 @@
 
 ### Для ленивых
 
+*Требуется версия Python >= 3.13*.
+
 Установить актуальную версию из [GitHub Release](https://github.com/Shindler7/py-grasshopper/releases/download/v0.3.0/py_grasshopper-0.3.0-cp313-cp313-win_amd64.whl):
 ```shell
 (.venv) pip install https://github.com/Shindler7/py-grasshopper/releases/download/v0.3.0/py_grasshopper-0.3.0-cp313-cp313-win_amd64.whl
